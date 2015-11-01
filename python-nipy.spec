@@ -8,7 +8,9 @@ Summary:        Neuroimaging in Python FMRI analysis package
 License:        BSD
 URL:            http://nipy.org/nipy
 Source0:        https://github.com/nipy/nipy/archive/%{version}/%{modname}-%{version}.tar.gz
-
+# https://github.com/nipy/nipy/pull/381
+Patch0:         0001-test_olsR-use-assert_array_almost_equal-instead.patch
+BuildRequires:  git-core
 BuildRequires:  gcc
 BuildRequires:  lapack-devel openblas-devel atlas-devel
 
@@ -65,7 +67,7 @@ analysis of functional brain imaging data using an open development model.
 Python 3 version.
 
 %prep
-%autosetup -n %{modname}-%{version}
+%autosetup -n %{modname}-%{version} -S git
 # Hard fix for bundled libs
 find -type f -name '*.py' -exec sed -i \
   -e "s/from \.*externals.six/from six/"                             \
