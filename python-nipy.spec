@@ -143,18 +143,13 @@ nipy/algorithms/diagnostics/tests/data/tsdiff_results.mat  \
 nipy/modalities/fmri/tests/spm_bases.mat                   \
 )
 
-# Do not fail on testing for now due to:
-# https://github.com/nipy/nipy/issues/380
-# https://github.com/matthew-brett/transforms3d/issues/6
-# Only 2 of 2603 fails ;)
-
 pushd build/lib.*-%{python2_version}
   for i in ${TESTING_DATA[@]}
   do
     mkdir -p ./${i%/*}/
     cp -a ../../$i ./$i
   done
-  PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python2_version} -v || :
+  PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python2_version} -v
 popd
 
 pushd %{py3dir}
@@ -164,7 +159,7 @@ pushd %{py3dir}
       mkdir -p ./${i%/*}/
       cp -a ../../$i ./$i
     done
-    PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python3_version} -v || :
+    PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python3_version} -v
   popd
 popd
 
