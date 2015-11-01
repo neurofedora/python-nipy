@@ -143,7 +143,8 @@ nipy/modalities/fmri/tests/spm_bases.mat                   \
 
 # Do not fail on testing for now due to:
 # https://github.com/nipy/nipy/issues/380
-# Only 1 of 2603 fails ;)
+# https://github.com/matthew-brett/transforms3d/issues/6
+# Only 2 of 2603 fails ;)
 
 pushd build/lib.*-%{python2_version}
   for i in ${TESTING_DATA[@]}
