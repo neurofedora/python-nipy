@@ -85,6 +85,12 @@ sed -i -e "/config.add_subpackage(.externals.)/d" nipy/setup.py
 rm -vrf nipy/externals/
 rm -rf lib/lapack_lite/
 
+# Disable one of tests due to:
+# https://github.com/nipy/nipy/issues/382
+%if 0%{?__isa_bits} != 64
+sed -i -e '/def test_mu2tet():/a \ \ \ \ from nose.plugins.skip import SkipTest; raise SkipTest("https://github.com/nipy/nipy/issues/382")' nipy/algorithms/statistics/tests/test_intrinsic_volumes.py
+%endif
+
 rm -rf %{py3dir}
 mkdir -p %{py3dir}
 cp -a . %{py3dir}
