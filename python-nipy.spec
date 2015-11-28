@@ -1,8 +1,14 @@
 %global modname nipy
 
+# Disable one of tests due to:
+# https://github.com/nipy/nipy/issues/382
+%if 0%{?__isa_bits} != 64
+%global skip_tests test_mu2tet
+%endif
+
 Name:           python-%{modname}
 Version:        0.4.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Neuroimaging in Python FMRI analysis package
 
 License:        BSD
@@ -67,76 +73,66 @@ analysis of functional brain imaging data using an open development model.
 Python 3 version.
 
 %prep
-%autosetup -n %{modname}-%{version} -S git
-# Hard fix for bundled libs
-find -type f -name '*.py' -exec sed -i \
-  -e "s/from \.*externals.six/from six/"                             \
-  -e "s/from nipy.externals.six/from six/"                           \
-  -e "s/from nipy.externals import six/import six/"                  \
-  -e "s/from nipy.externals.argparse/from argparse/"                 \
-  -e "s/import nipy.externals.argparse as argparse/import argparse/" \
-  -e "s/from \.*externals.transforms3d/from transforms3d/"           \
-  {} ';'
-find scripts/ -type f -exec sed -i \
-  -e "s/from nipy.externals.argparse/from argparse/"                 \
-  -e "s/import nipy.externals.argparse as argparse/import argparse/" \
-  {} ';'
-sed -i -e "/config.add_subpackage(.externals.)/d" nipy/setup.py
-rm -vrf nipy/externals/
-rm -rf lib/lapack_lite/
+%setup -qc
+mv %{modname}-%{version} python2
 
-# Disable one of tests due to:
-# https://github.com/nipy/nipy/issues/382
-%if 0%{?__isa_bits} != 64
-sed -i -e '/def test_mu2tet():/a \ \ \ \ from nose.plugins.skip import SkipTest; raise SkipTest("https://github.com/nipy/nipy/issues/382")' nipy/algorithms/statistics/tests/test_intrinsic_volumes.py
-%endif
+pushd python2
+%patch0 -p1
+  # Hard fix for bundled libs
+  find -type f -name '*.py' -exec sed -i \
+    -e "s/from \.*externals.six/from six/"                             \
+    -e "s/from nipy.externals.six/from six/"                           \
+    -e "s/from nipy.externals import six/import six/"                  \
+    -e "s/from nipy.externals.argparse/from argparse/"                 \
+    -e "s/import nipy.externals.argparse as argparse/import argparse/" \
+    -e "s/from \.*externals.transforms3d/from transforms3d/"           \
+    {} ';'
+  find scripts/ -type f -exec sed -i \
+    -e "s/from nipy.externals.argparse/from argparse/"                 \
+    -e "s/import nipy.externals.argparse as argparse/import argparse/" \
+    {} ';'
+  sed -i -e "/config.add_subpackage(.externals.)/d" nipy/setup.py
+  rm -vrf nipy/externals/
+  rm -rf lib/lapack_lite/
+popd
 
-rm -rf %{py3dir}
-mkdir -p %{py3dir}
-cp -a . %{py3dir}
-for mod in nipy_3dto4d nipy_4d_realign nipy_4dto3d nipy_diagnose nipy_tsdiffana
-do
-  sed -i -e "/cmd\(_root\)\? =/s/$mod/$mod-2/" nipy/tests/test_scripts.py
-  sed -i -e "/cmd\(_root\)\? =/s/$mod/$mod-3/" %{py3dir}/nipy/tests/test_scripts.py
-done
+cp -a python2 python3
 
 %build
 export NIPY_EXTERNAL_LAPACK=1
-%py2_build
 
-pushd %{py3dir}
+pushd python2
+  %py2_build
+popd
+
+pushd python3
   %py3_build
 popd
 
 %install
 export NIPY_EXTERNAL_LAPACK=1
-%py2_install
 
-pushd %{py3dir}
+pushd python2
+  %py2_install
+popd
+
+pushd python3
  %py3_install
 popd
 
-# Rename binaries
-pushd %{buildroot}%{_bindir}
-  for mod in nipy_3dto4d nipy_4d_realign nipy_4dto3d nipy_diagnose nipy_tsdiffana
-  do
-    mv $mod python2-$mod
+find %{buildroot}%{python2_sitearch} -name '*.so' -exec chmod 755 {} ';'
+find %{buildroot}%{python3_sitearch} -name '*.so' -exec chmod 755 {} ';'
 
-    sed -i '1s|^.*$|#!/usr/bin/env %{__python2}|' python2-$mod
-    for i in $mod $mod-2 $mod-%{python2_version}
-    do
-      ln -s python2-$mod $i
-    done
+sed -i -e '1s|^#!.*$|%{__python3}|' %{buildroot}%{_bindir}/nipy*
 
-    cp python2-$mod python3-$mod
-    sed -i '1s|^.*$|#!/usr/bin/env %{__python3}|' python3-$mod
-
-    for i in $mod-3 $mod-%{python3_version}
-    do
-      ln -s python3-$mod $i
-    done
-  done
-popd
+find %{buildroot}%{python2_sitearch}/%{modname}/ %{buildroot}%{python3_sitearch}/%{modname}/ -name '*.py' -type f > tmp
+while read lib
+do
+ sed '1{\@^#!/usr/bin/env python@d}' $lib > $lib.new &&
+ touch -r $lib $lib.new &&
+ mv $lib.new $lib
+done < tmp
+rm -f tmp
 
 %check
 TESTING_DATA=( \
@@ -149,71 +145,43 @@ nipy/algorithms/diagnostics/tests/data/tsdiff_results.mat  \
 nipy/modalities/fmri/tests/spm_bases.mat                   \
 )
 
-pushd build/lib.*-%{python2_version}
+pushd python2/build/lib.*-%{python2_version}
   for i in ${TESTING_DATA[@]}
   do
     mkdir -p ./${i%/*}/
     cp -a ../../$i ./$i
   done
-  PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python2_version} -v
+  nosetests-%{python2_version} -v %{?skip_tests:-e %{skip_tests}} -I test_scripts.py
 popd
 
-pushd %{py3dir}
-  pushd build/lib.*-%{python3_version}
-    for i in ${TESTING_DATA[@]}
-    do
-      mkdir -p ./${i%/*}/
-      cp -a ../../$i ./$i
-    done
-    PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python3_version} -v
-  popd
+pushd python3/build/lib.*-%{python3_version}
+  for i in ${TESTING_DATA[@]}
+  do
+    mkdir -p ./${i%/*}/
+    cp -a ../../$i ./$i
+  done
+  PATH="%{buildroot}%{_bindir}:$PATH" nosetests-%{python3_version} -v %{?skip_tests:-e %{skip_tests}}
 popd
 
 %files -n python2-%{modname}
 %license LICENSE
 %doc README.rst AUTHOR THANKS examples
-%{_bindir}/nipy_3dto4d
-%{_bindir}/nipy_3dto4d-2
-%{_bindir}/nipy_3dto4d-%{python2_version}
-%{_bindir}/python2-nipy_3dto4d
-%{_bindir}/nipy_4d_realign
-%{_bindir}/nipy_4d_realign-2
-%{_bindir}/nipy_4d_realign-%{python2_version}
-%{_bindir}/python2-nipy_4d_realign
-%{_bindir}/nipy_4dto3d
-%{_bindir}/nipy_4dto3d-2
-%{_bindir}/nipy_4dto3d-%{python2_version}
-%{_bindir}/python2-nipy_4dto3d
-%{_bindir}/nipy_diagnose
-%{_bindir}/nipy_diagnose-2
-%{_bindir}/nipy_diagnose-%{python2_version}
-%{_bindir}/python2-nipy_diagnose
-%{_bindir}/nipy_tsdiffana
-%{_bindir}/nipy_tsdiffana-2
-%{_bindir}/nipy_tsdiffana-%{python2_version}
-%{_bindir}/python2-nipy_tsdiffana
 %{python2_sitearch}/%{modname}*
 
 %files -n python3-%{modname}
 %license LICENSE
 %doc README.rst AUTHOR THANKS examples
-%{_bindir}/nipy_3dto4d-3
-%{_bindir}/nipy_3dto4d-%{python3_version}
-%{_bindir}/python3-nipy_3dto4d
-%{_bindir}/nipy_4d_realign-3
-%{_bindir}/nipy_4d_realign-%{python3_version}
-%{_bindir}/python3-nipy_4d_realign
-%{_bindir}/nipy_4dto3d-3
-%{_bindir}/nipy_4dto3d-%{python3_version}
-%{_bindir}/python3-nipy_4dto3d
-%{_bindir}/nipy_diagnose-3
-%{_bindir}/nipy_diagnose-%{python3_version}
-%{_bindir}/python3-nipy_diagnose
-%{_bindir}/nipy_tsdiffana-3
-%{_bindir}/nipy_tsdiffana-%{python3_version}
-%{_bindir}/python3-nipy_tsdiffana
+%{_bindir}/nipy_3dto4d
+%{_bindir}/nipy_4d_realign
+%{_bindir}/nipy_4dto3d
+%{_bindir}/nipy_diagnose
+%{_bindir}/nipy_tsdiffana
 %{python3_sitearch}/%{modname}*
 
 %changelog
+* Sat Nov 28 2015 Igor Gnatenko <i.gnatenko.brain@gmail.com> - 0.4.0-2
+- Do not use obsolete py3dir
+- Have only one binary
+
 * Sun Nov 01 2015 Igor Gnatenko <i.gnatenko.brain@gmail.com> - 0.4.0-1
 - Initial package
