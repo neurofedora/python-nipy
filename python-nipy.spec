@@ -125,7 +125,7 @@ popd
 find %{buildroot}%{python2_sitearch} -name '*.so' -exec chmod 755 {} ';'
 find %{buildroot}%{python3_sitearch} -name '*.so' -exec chmod 755 {} ';'
 
-sed -i -e '1s|^#!.*$|%{__python3}|' %{buildroot}%{_bindir}/nipy*
+sed -i -e '1s|^#!.*$|#!%{__python3}|' %{buildroot}%{_bindir}/nipy*
 
 find %{buildroot}%{python2_sitearch}/%{modname}/ %{buildroot}%{python3_sitearch}/%{modname}/ -name '*.py' -type f > tmp
 while read lib
