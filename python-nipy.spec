@@ -1,5 +1,7 @@
 %global modname nipy
 
+%global _docdir_fmt %{name}
+
 # Disable one of tests due to:
 # https://github.com/nipy/nipy/issues/382
 %if 0%{?__isa_bits} != 64
