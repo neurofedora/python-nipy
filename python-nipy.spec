@@ -10,7 +10,7 @@
 
 Name:           python-%{modname}
 Version:        0.4.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Neuroimaging in Python FMRI analysis package
 
 License:        BSD
@@ -75,64 +75,44 @@ analysis of functional brain imaging data using an open development model.
 Python 3 version.
 
 %prep
-%setup -qc
-mv %{modname}-%{version} python2
+%autosetup -n %{modname}-%{version} -p1 -Sgit
 
-pushd python2
-%patch0 -p1
-  # Hard fix for bundled libs
-  find -type f -name '*.py' -exec sed -i \
-    -e "s/from \.*externals.six/from six/"                             \
-    -e "s/from nipy.externals.six/from six/"                           \
-    -e "s/from nipy.externals import six/import six/"                  \
-    -e "s/from nipy.externals.argparse/from argparse/"                 \
-    -e "s/import nipy.externals.argparse as argparse/import argparse/" \
-    -e "s/from \.*externals.transforms3d/from transforms3d/"           \
-    {} ';'
-  find scripts/ -type f -exec sed -i \
-    -e "s/from nipy.externals.argparse/from argparse/"                 \
-    -e "s/import nipy.externals.argparse as argparse/import argparse/" \
-    {} ';'
-  sed -i -e "/config.add_subpackage(.externals.)/d" nipy/setup.py
-  rm -vrf nipy/externals/
-  rm -rf lib/lapack_lite/
-popd
-
-cp -a python2 python3
+# Hard fix for bundled libs
+find -type f -name '*.py' -exec sed -i \
+  -e "s/from \.*externals.six/from six/"                             \
+  -e "s/from nipy.externals.six/from six/"                           \
+  -e "s/from nipy.externals import six/import six/"                  \
+  -e "s/from nipy.externals.argparse/from argparse/"                 \
+  -e "s/import nipy.externals.argparse as argparse/import argparse/" \
+  -e "s/from \.*externals.transforms3d/from transforms3d/"           \
+  {} ';'
+find scripts/ -type f -exec sed -i \
+  -e "s/from nipy.externals.argparse/from argparse/"                 \
+  -e "s/import nipy.externals.argparse as argparse/import argparse/" \
+  {} ';'
+sed -i -e "/config.add_subpackage(.externals.)/d" nipy/setup.py
+rm -vrf nipy/externals/
+rm -rf lib/lapack_lite/
 
 %build
 export NIPY_EXTERNAL_LAPACK=1
 
-pushd python2
-  %py2_build
-popd
-
-pushd python3
-  %py3_build
-popd
+%py2_build
+%py3_build
 
 %install
 export NIPY_EXTERNAL_LAPACK=1
 
-pushd python2
-  %py2_install
-popd
-
-pushd python3
- %py3_install
-popd
+%py3_install
+%py2_install
 
 find %{buildroot}%{python2_sitearch} -name '*.so' -exec chmod 755 {} ';'
 find %{buildroot}%{python3_sitearch} -name '*.so' -exec chmod 755 {} ';'
 
-sed -i -e '1s|^#!.*$|#!%{__python3}|' %{buildroot}%{_bindir}/nipy*
-
 find %{buildroot}%{python2_sitearch}/%{modname}/ %{buildroot}%{python3_sitearch}/%{modname}/ -name '*.py' -type f > tmp
 while read lib
 do
- sed '1{\@^#!/usr/bin/env python@d}' $lib > $lib.new &&
- touch -r $lib $lib.new &&
- mv $lib.new $lib
+ sed -i '1{\@^#!/usr/bin/env python@d}' $lib
 done < tmp
 rm -f tmp
 
@@ -147,7 +127,7 @@ nipy/algorithms/diagnostics/tests/data/tsdiff_results.mat  \
 nipy/modalities/fmri/tests/spm_bases.mat                   \
 )
 
-pushd python2/build/lib.*-%{python2_version}
+pushd build/lib.*-%{python2_version}
   for i in ${TESTING_DATA[@]}
   do
     mkdir -p ./${i%/*}/
@@ -156,7 +136,7 @@ pushd python2/build/lib.*-%{python2_version}
   nosetests-%{python2_version} -v %{?skip_tests:-e %{skip_tests}} -I test_scripts.py
 popd
 
-pushd python3/build/lib.*-%{python3_version}
+pushd build/lib.*-%{python3_version}
   for i in ${TESTING_DATA[@]}
   do
     mkdir -p ./${i%/*}/
@@ -181,6 +161,9 @@ popd
 %{python3_sitearch}/%{modname}*
 
 %changelog
+* Sun Nov 29 2015 Igor Gnatenko <i.gnatenko.brain@gmail.com> - 0.4.0-3
+- Use one directory for building
+
 * Sat Nov 28 2015 Igor Gnatenko <i.gnatenko.brain@gmail.com> - 0.4.0-2
 - Do not use obsolete py3dir
 - Have only one binary
